@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model User {
+  id                Int      @id @default(autoincrement())
+  username          String   @unique
+  email             String   @unique
+  password          String
+  role              UserRole @default(USER)
+
+  is_verified       Boolean  @default(false)
+
+  verification_code String?
+
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  refreshTokens     RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id          Int      @id @default(autoincrement())
+
+  token_hash  String
+
+  expires_at  DateTime
+  created_at  DateTime @default(now())
+
+  user_id     Int
+  user        User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model City {
+  id         Int     @id @default(autoincrement())
+  city       String
+  city_ascii String
+  lat        Float
+  lng        Float
+  country    String
+  iso2       String
+  iso3       String
+  admin_name String
+  capital    String
+  population Int?
+
+  @@map("cities")
+}
