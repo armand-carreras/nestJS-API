@@ -38,6 +38,10 @@ export class TokenHandlingService {
     return bcrypt.hash(token, 12); 
   }
 
+  async compareHashedTokens(hashedToken: string, refreshTokenNotHashed: string) {
+    return bcrypt.compare(hashedToken, await bcrypt.hash(refreshTokenNotHashed,12));
+  }
+
   async asyncVerifial(token: string) {
     return this.jwtService.verifyAsync(token,);
   }

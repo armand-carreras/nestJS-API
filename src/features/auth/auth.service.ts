@@ -70,7 +70,7 @@ export class AuthService {
     const valid = await bcrypt.compare(password, user?.password);
     //If not raise an exception
     if(!valid) {
-      throw new ConflictException('Incorrect Password, try again!');
+      throw new UnauthorizedException('Incorrect Password, try again!');
     }
     //All correct build JWT_DTO
     const JWT_DTO: JwtDto = {
@@ -81,22 +81,9 @@ export class AuthService {
     }
     //Generate DTO pairs
     const tokens = await this.tokenService.generateTokenPair(JWT_DTO);
-    //clean DB from old RefreshTokens
-    await this.cleanupExpiredRefreshTokens();
     //Create new RefreshToken entrance, hasedToken for security 30d expiration
-    await this.prisma.refreshToken.create({
-      data: {
-        token_hash:
-          await this.tokenService.hashRefreshToken(
-            tokens.refreshToken
-          ),
-        user_id: user.id,
-        expires_at: new Date(
-          Date.now() +
-          30 * 24 * 60 * 60 * 1000,
-        ),
-      },
-    });
+    const hashedToken = await this.tokenService.hashRefreshToken(tokens.refreshToken);
+    await this.createNewRefreshTokenRecord(user.id, hashedToken);
     //both unencrypted tokens are sent to client for it to store them.
     return tokens;
 
@@ -111,32 +98,49 @@ export class AuthService {
    * @returns {TokenPair}
    */
   async refreshTokenLogin(refreshToken: string): Promise<TokenPair | null> {
+
     const payload = await this.tokenService.asyncVerifial(refreshToken);
-    const hashedToken = await this.tokenService.hashRefreshToken(refreshToken);
-    const storedToken = await this.prisma.refreshToken.findFirst({
+
+    const storedTokens = await this.prisma.refreshToken.findMany({
       where: {
         user_id: payload.sub,
-        token_hash: hashedToken
+        revoked: false,
+        expires_at: { gt: new Date() }
       },
       include: {
         user: true
       }
-    })
-    if(!storedToken) {
-      throw new UnauthorizedException('Try Log in with your credentials again token is malformed or might be expired');
-    } 
-    if(storedToken.expires_at < new Date()) { 
-      await this.cleanupExpiredRefreshTokens();
-      throw new UnauthorizedException('Try Log in with your credentials again token is malformed or might be expired');
-    }
-    const jwtPayload: JwtDto = {
-      sub: storedToken.user.id,
-      username: storedToken.user.username,
-      email: storedToken.user.email,
-      role: storedToken.user.role,
+    });
+
+    let matchedToken: (typeof storedTokens)[number] | undefined;
+    for (const token of storedTokens) {
+      if (await bcrypt.compare(refreshToken, token.token_hash)) {
+        matchedToken = token;
+        break;
+      }
     }
 
-    return this.tokenService.generateTokenPair(jwtPayload);
+    if (!matchedToken) {
+      throw new UnauthorizedException('Try logging in with your credentials again – token is malformed or might be expired');
+    }
+
+    const jwtPayload: JwtDto = {
+      sub: matchedToken.user.id,
+      username: matchedToken.user.username,
+      email: matchedToken.user.email,
+      role: matchedToken.user.role,
+    };
+
+    const newPair = await this.tokenService.generateTokenPair(jwtPayload);
+    const hashedRefreshToken = await this.tokenService.hashRefreshToken(newPair.refreshToken);
+
+    await this.prisma.refreshToken.update({
+      where: { id: matchedToken.id },
+      data: { replaced_by: newPair.refreshToken, revoked: true },
+    });
+    await this.createNewRefreshTokenRecord(matchedToken.user_id, hashedRefreshToken);
+
+    return newPair;
 
   }
 
@@ -160,11 +164,20 @@ export class AuthService {
   private async findByUsernameOrEmail(email?: string, username?: string) {
     if(username) return await this.findByUsername(username);
     else if(email) return await this.findByEmail(email);
-    else throw new ConflictException('Username or Email does not exist');
+    else throw new UnauthorizedException('Username or Email does not exist');
   }
 
-  private async findById(id: number) {
-    return this.prisma.user.findUnique({ where: { id } });
+  private async createNewRefreshTokenRecord(user_id: number, hashedToken: string) {
+    await this.prisma.refreshToken.create({
+      data: {
+        token_hash: hashedToken,
+        user_id: user_id,
+        expires_at: new Date(
+          Date.now() +
+          30 * 24 * 60 * 60 * 1000,
+        ),
+      },
+    });
   }
 
   private async cleanupExpiredRefreshTokens() {
