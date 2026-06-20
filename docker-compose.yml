@@ -1,0 +1,30 @@
+services:
+  demoapi:
+    container_name: demoapi
+
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    networks:
+      - web
+
+    labels:
+      - "traefik.enable=true"
+
+      # Router
+      - "traefik.http.routers.demoapi.rule=Host(`demoapi.yourdomain.com`)"
+      - "traefik.http.routers.demoapi.entrypoints=websecure"
+      - "traefik.http.routers.demoapi.tls.certresolver=le"
+
+      # Service
+      - "traefik.http.services.demoapi.loadbalancer.server.port=3000"
+
+networks:
+  web:
+    external: true
