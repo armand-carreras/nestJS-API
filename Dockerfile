@@ -1,44 +1,24 @@
-# Build stage
-FROM node:22-alpine AS builder
+# 1. Base image
+FROM node:20-alpine
 
+# 2. Create app directory
 WORKDIR /app
 
+# 3. Install dependencies first (better caching)
 COPY package*.json ./
+RUN npm install
 
-RUN npm ci
+# 4. Copy Prisma schema + migrations (🔥 IMPORTANT FIX)
+COPY prisma ./prisma
 
+# 5. Copy rest of the application
 COPY . .
 
-# Set DATABASE_URL for prisma generate (required by prisma.config.ts)
-# .env is excluded via .dockerignore, so we set it here for the build
-ENV DATABASE_URL="file:./data/nest-api.db"
-
+# 6. Generate Prisma Client
 RUN npx prisma generate
 
-RUN npx nest build
+# 7. Build NestJS app
+RUN npm run build
 
-# Runtime stage
-FROM node:22-alpine
-
-WORKDIR /app
-
-RUN mkdir -p /app/data
-
-# better-sqlite3 is a native module - install build deps, compile, then remove them
-RUN apk add --no-cache python3 make g++
-
-COPY package*.json ./
-
-RUN npm ci --omit=dev
-
-RUN apk del python3 make g++
-
-COPY --from=builder /app/dist ./dist
-# Prisma generates .prisma/client/ inside node_modules — must be copied for @prisma/client to resolve
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-
-ENV NODE_ENV=production
-
-EXPOSE 3000
-
-CMD ["node", "dist/src/main.js"]
+# 8. Runtime command (IMPORTANT for migrations)
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]d
