@@ -5,6 +5,7 @@ export interface User {
     username: string;
     email: string;
     password: string;
+    role: string
     is_verified: boolean;
     created_at: Date;
     updated_at: Date;
