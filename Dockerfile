@@ -24,12 +24,16 @@ WORKDIR /app
 
 RUN mkdir -p /app/data
 
+# better-sqlite3 is a native module - install build deps, compile, then remove them
+RUN apk add --no-cache python3 make g++
+
 COPY package*.json ./
 
 RUN npm ci --omit=dev
 
+RUN apk del python3 make g++
+
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/generated ./generated
 
 ENV NODE_ENV=production
 
