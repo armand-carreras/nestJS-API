@@ -9,6 +9,12 @@ RUN npm ci
 
 COPY . .
 
+# Set DATABASE_URL for prisma generate (required by prisma.config.ts)
+# .env is excluded via .dockerignore, so we set it here for the build
+ENV DATABASE_URL="file:./data/nest-api.db"
+
+RUN npx prisma generate
+
 RUN npm run build
 
 # Runtime stage
@@ -16,11 +22,14 @@ FROM node:22-alpine
 
 WORKDIR /app
 
+RUN mkdir -p /app/data
+
 COPY package*.json ./
 
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/generated ./generated
 
 ENV NODE_ENV=production
 
