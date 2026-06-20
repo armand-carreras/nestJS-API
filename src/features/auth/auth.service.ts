@@ -58,13 +58,13 @@ export class AuthService {
    */
 
 
-  async login(password: string, email?: string, username?: string): Promise< TokenPair | null > {
+  async login(password: string, email?: string, username?: string): Promise< TokenPair > {
 
     //Check if user exists
     const user = await this.findByUsernameOrEmail(email, username);
-    //if not exits with null, previous method already throws exception, just for backup
+    //if not found throw unauthorized
     if(!user) {
-      return null;
+      throw new UnauthorizedException('User not found');
     } 
     //check if password is correct
     const valid = await bcrypt.compare(password, user?.password);
@@ -121,7 +121,7 @@ export class AuthService {
     }
 
     if (!matchedToken) {
-      throw new UnauthorizedException('Try logging in with your credentials again – token is malformed or might be expired');
+      throw new UnauthorizedException('Try logging in with your credentials again token is malformed or might be expired');
     }
 
     const jwtPayload: JwtDto = {
@@ -134,9 +134,10 @@ export class AuthService {
     const newPair = await this.tokenService.generateTokenPair(jwtPayload);
     const hashedRefreshToken = await this.tokenService.hashRefreshToken(newPair.refreshToken);
 
+    const hashedReplacedBy = await this.tokenService.hashRefreshToken(newPair.refreshToken);
     await this.prisma.refreshToken.update({
       where: { id: matchedToken.id },
-      data: { replaced_by: newPair.refreshToken, revoked: true },
+      data: { replaced_by: hashedReplacedBy, revoked: true },
     });
     await this.createNewRefreshTokenRecord(matchedToken.user_id, hashedRefreshToken);
 
@@ -180,7 +181,7 @@ export class AuthService {
     });
   }
 
-  private async cleanupExpiredRefreshTokens() {
+/*   private async cleanupExpiredRefreshTokens() {
     await this.prisma.refreshToken.deleteMany({
       where: {
         expires_at: {
@@ -188,6 +189,6 @@ export class AuthService {
         },
       },
     });
-  }
+  } */
 
 }

@@ -38,8 +38,8 @@ export class TokenHandlingService {
     return bcrypt.hash(token, 12); 
   }
 
-  async compareHashedTokens(hashedToken: string, refreshTokenNotHashed: string) {
-    return bcrypt.compare(hashedToken, await bcrypt.hash(refreshTokenNotHashed,12));
+  async compareHashedTokens(storedHash: string, plaintextToken: string) {
+    return bcrypt.compare(plaintextToken, storedHash);
   }
 
   async asyncVerifial(token: string) {
