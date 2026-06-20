@@ -34,6 +34,8 @@ RUN npm ci --omit=dev
 RUN apk del python3 make g++
 
 COPY --from=builder /app/dist ./dist
+# Prisma generates .prisma/client/ inside node_modules — must be copied for @prisma/client to resolve
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 ENV NODE_ENV=production
 
