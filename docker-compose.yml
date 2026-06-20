@@ -13,7 +13,7 @@ services:
 
     volumes:
       - ./data:/app/data
-      
+
     networks:
       - web
 
@@ -21,7 +21,7 @@ services:
       - "traefik.enable=true"
 
       # Router
-      - "traefik.http.routers.demoapi.rule=Host(`demoapi.yourdomain.com`)"
+      - "traefik.http.routers.demoapi.rule=Host(`demoapi.aclcodesolutions.com`)"
       - "traefik.http.routers.demoapi.entrypoints=websecure"
       - "traefik.http.routers.demoapi.tls.certresolver=le"
 
