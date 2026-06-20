@@ -15,7 +15,7 @@ ENV DATABASE_URL="file:./data/nest-api.db"
 
 RUN npx prisma generate
 
-RUN npm run build
+RUN npx nest build
 
 # Runtime stage
 FROM node:22-alpine
